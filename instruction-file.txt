@@ -1,0 +1,223 @@
+PROJECT INSTRUCTION FILE
+TITLE: Erasure Coding Simulator (Reed–Solomon vs. LRC)
+
+---
+
+1. PROJECT GOAL
+
+---
+
+Build a simple, demonstration-level simulator that models:
+
+1. Standard Erasure Coding using Reed–Solomon (RS)
+2. Local Reconstruction Codes (LRC), a simplified Azure-like variant.
+
+The simulator must:
+
+* Encode data into fragments distributed across nodes.
+* Simulate node failures.
+* Trigger reconstruction using RS or LRC logic.
+* Show difference in recovery cost (number of nodes contacted).
+
+This is NOT a production system.
+This is a small, educational simulation.
+
+---
+
+2. TECHNOLOGY REQUIREMENTS
+
+---
+
+* Programming Language: Python 3.1x.y
+* Platform: Windows OS
+* Execution: Command line or simple script (no GUI needed).
+* Parallel Simulation: Nodes must be simulated as separate threads or processes.
+
+  * Threading is preferred (simplest).
+* Finite-field operations: Python package `galois` or `reedsolo` may be used.
+
+---
+
+3. PROJECT STRUCTURE REQUIREMENTS
+
+---
+
+Use an Object-Oriented (OOP) structure.
+
+Suggested folder layout:
+
+/project-root
+│
+├── config/
+│   └── constants.py
+│
+├── core/
+│   ├── node.py
+│   ├── cluster.py
+│   ├── encoder_rs.py
+│   ├── encoder_lrc.py
+│   ├── simulator.py
+│
+├── utils/
+│   └── logger.py
+│
+└── main.py
+
+---
+
+4. CODE STYLE REQUIREMENTS
+
+---
+
+* Naming convention: **snake_case** for functions & variables
+* Class names: **PascalCase**
+* Maximum readability; avoid clever shortcuts
+* Add short docstrings for every class and method
+* Keep modules small and logical
+
+---
+
+5. CONFIGURATION REQUIREMENTS (constants.py)
+
+---
+
+All adjustable parameters must be located in config/constants.py.
+
+Example entries:
+
+* NUM_NODES
+* RS_K (data fragments)
+* RS_R (parity fragments)
+* LRC_K
+* LRC_LOCAL_PARITY
+* BLOCK_SIZE
+* FAILURE_COUNT
+* THREAD_DELAY_MS
+
+---
+
+6. SIMULATION REQUIREMENTS
+
+---
+
+1. Nodes are simulated as threads.
+2. Each node stores one fragment (data or parity).
+3. Failure simulation:
+
+   * Randomly select nodes to fail.
+   * Mark them unavailable.
+4. Reconstruction:
+
+   * RS: use k out of (k+r) surviving fragments
+   * LRC: try local groups first; if not possible, fallback to global parity
+5. Output:
+
+   * Encoding summary
+   * Failed nodes
+   * Number of nodes contacted during recovery
+   * Recovered data validation (simple byte/string check)
+
+---
+
+7. OOP DESIGN SPECIFICATION
+
+---
+
+Core classes:
+
+1. class Node
+
+   * Attributes: node_id, fragment, is_alive
+   * Methods: store_fragment(), fail(), recover()
+
+2. class Cluster
+
+   * Manages list of Node objects
+   * Methods: distribute_fragments(), fail_nodes(), get_alive_nodes()
+
+3. class EncoderRS
+
+   * Methods: encode(data), decode(fragments)
+
+4. class EncoderLRC
+
+   * Methods: encode(data), local_decode(), global_decode()
+
+5. class Simulator
+
+   * Loads constants
+   * Orchestrates: encoding → node failure → reconstruction
+   * Logs and prints results
+
+---
+
+8. ENCODING SIMPLIFICATION RULES
+
+---
+
+You MAY simplify to keep implementation easy:
+
+* Data can be a string or bytes.
+* RS encoding may use:
+
+  * Python `reedsolo` library, OR
+  * simple XOR parity (if algorithm complexity becomes too high).
+* LRC local groups may be implemented as:
+
+  * Divide k data blocks into groups of size g
+  * Add 1 XOR parity for each group
+  * Add 1 global parity for all groups
+
+---
+
+9. OUTPUT & LOGGING REQUIREMENTS
+
+---
+
+The simulator should print:
+
+* Input data
+* RS encoded fragments
+* LRC encoded fragments
+* Simulated node failures
+* Nodes used for recovery
+* Recovered data
+* Comparison of RS vs LRC recovery cost
+
+Logging:
+
+* Minimal logging to console
+* Optional file logging
+
+---
+
+10. SUCCESS CRITERIA
+
+---
+
+The project is complete when:
+
+* RS encode/decode works for simulated failures
+* LRC encode/decode works with local repair when possible
+* Nodes are simulated as threads
+* Behavior matches constants file parameters
+* Code is clean, readable, and fully OOP
+* Demonstration clearly shows:
+
+  * RS contacts many nodes for recovery
+  * LRC contacts fewer nodes for local repair
+
+---
+
+11. OPTIONAL EXTENSIONS (NOT REQUIRED)
+
+---
+
+* Visual graph of fragments on nodes
+* Time-based simulation with delays
+* GUI dashboard
+* JSON export of results
+
+---
+
+## END OF INSTRUCTION FILE
