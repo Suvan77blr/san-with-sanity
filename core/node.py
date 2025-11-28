@@ -28,16 +28,26 @@ class Node:
         Args:
             fragment: The data fragment to store
         """
-        pass
+        self.fragment = fragment
 
     def fail(self):
         """
-        Mark this node as failed.
+        Mark this node as failed (unavailable).
         """
-        pass
+        self.is_alive = False
 
     def recover(self):
         """
-        Mark this node as recovered.
+        Mark this node as recovered (available again).
         """
-        pass
+        self.is_alive = True
+
+    def __str__(self):
+        """
+        String representation of the node.
+
+        Returns:
+            String showing node status
+        """
+        status = "ALIVE" if self.is_alive else "FAILED"
+        return f"Node {self.node_id}: {status}"
