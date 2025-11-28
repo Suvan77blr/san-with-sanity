@@ -9,6 +9,7 @@ from config.constants import *
 from .cluster import Cluster
 from .encoder_rs import EncoderRS
 from .encoder_lrc import EncoderLRC
+from utils.logger import Logger
 
 class Simulator:
     """
@@ -31,21 +32,21 @@ class Simulator:
         self.rs_encoder = None
         self.lrc_encoder = None
         self.original_data = None
+        self.logger = Logger(log_to_file=False)  # Console-only logging for demo
 
     def run_simulation(self, test_data="Hello, World! This is a test message for erasure coding simulation."):
         """
         Run the complete simulation workflow.
         """
-        print("=== Erasure Coding Simulator: RS vs LRC ===\n")
-
+        self.logger.log_header("Erasure Coding Simulator: RS vs LRC")
         self.original_data = test_data
-        print(f"Original Data: {self.original_data}\n")
+        self.logger.log_data_summary("Original Data", self.original_data)
 
         # Initialize components
         self._initialize_components()
 
         # RS Simulation
-        print("--- Reed-Solomon (RS) Simulation ---")
+        self.logger.log_header("Reed-Solomon (RS) Simulation")
         rs_fragments = self._encode_data_rs()
         rs_failed_nodes = self._simulate_failures_rs()
         rs_recovered_data, rs_nodes_contacted = self._reconstruct_rs(rs_fragments)
@@ -54,21 +55,28 @@ class Simulator:
         self.cluster.reset_all_nodes()
 
         # LRC Simulation
-        print("\n--- Local Reconstruction Code (LRC) Simulation ---")
+        self.logger.log_header("Local Reconstruction Code (LRC) Simulation")
         lrc_fragments = self._encode_data_lrc()
         lrc_failed_nodes = self._simulate_failures_lrc()
         lrc_recovered_data, lrc_nodes_contacted = self._reconstruct_lrc(lrc_fragments)
 
         # Results comparison
-        self._print_comparison(rs_failed_nodes, rs_nodes_contacted,
-                             lrc_failed_nodes, lrc_nodes_contacted,
-                             rs_recovered_data, lrc_recovered_data)
+        rs_stats = {
+            'nodes_contacted': rs_nodes_contacted,
+            'success': rs_recovered_data == self.original_data if rs_recovered_data else False
+        }
+        lrc_stats = {
+            'nodes_contacted': lrc_nodes_contacted,
+            'success': lrc_recovered_data == self.original_data if lrc_recovered_data else False
+        }
+
+        self.logger.log_simulation_results(rs_stats, lrc_stats)
 
     def _initialize_components(self):
         """
         Initialize cluster and encoders.
         """
-        print("Initializing cluster and encoders...")
+        self.logger.log_info("Initializing cluster and encoders...")
         self.cluster = Cluster(self.num_nodes)
         self.rs_encoder = EncoderRS(self.rs_k, self.rs_r)
         self.lrc_encoder = EncoderLRC(self.lrc_k, self.lrc_local_parity)
@@ -78,10 +86,10 @@ class Simulator:
         """
         Encode data using Reed-Solomon.
         """
-        print(f"Encoding data into {self.rs_k} data + {self.rs_r} parity fragments...")
+        self.logger.log_info(f"Encoding data into {self.rs_k} data + {self.rs_r} parity fragments...")
         fragments = self.rs_encoder.encode(self.original_data)
         self.cluster.distribute_fragments(fragments)
-        print(f"RS Fragments created: {len(fragments)} total")
+        self.logger.log_info(f"RS Fragments created: {len(fragments)} total")
         time.sleep(self.thread_delay)
         return fragments
 
@@ -89,10 +97,10 @@ class Simulator:
         """
         Encode data using Local Reconstruction Codes.
         """
-        print(f"Encoding data into {self.lrc_k} data + local/global parity fragments...")
+        self.logger.log_info(f"Encoding data into {self.lrc_k} data + local/global parity fragments...")
         fragments = self.lrc_encoder.encode(self.original_data)
         self.cluster.distribute_fragments(fragments)
-        print(f"LRC Fragments created: {len(fragments)} total")
+        self.logger.log_info(f"LRC Fragments created: {len(fragments)} total")
         time.sleep(self.thread_delay)
         return fragments
 
@@ -100,9 +108,9 @@ class Simulator:
         """
         Simulate node failures for RS.
         """
-        print(f"Simulating {self.failure_count} node failures...")
+        self.logger.log_info(f"Simulating {self.failure_count} node failures...")
         failed_nodes = self.cluster.fail_nodes(self.failure_count)
-        print(f"Failed nodes: {failed_nodes}")
+        self.logger.log_info(f"Failed nodes: {failed_nodes}")
         time.sleep(self.thread_delay)
         return failed_nodes
 
@@ -110,9 +118,9 @@ class Simulator:
         """
         Simulate node failures for LRC.
         """
-        print(f"Simulating {self.failure_count} node failures...")
+        self.logger.log_info(f"Simulating {self.failure_count} node failures...")
         failed_nodes = self.cluster.fail_nodes(self.failure_count)
-        print(f"Failed nodes: {failed_nodes}")
+        self.logger.log_info(f"Failed nodes: {failed_nodes}")
         time.sleep(self.thread_delay)
         return failed_nodes
 
@@ -120,24 +128,25 @@ class Simulator:
         """
         Attempt reconstruction using RS codes.
         """
-        print("Attempting RS reconstruction...")
+        self.logger.log_info("Attempting RS reconstruction...")
         alive_nodes = self.cluster.get_alive_nodes()
         available_fragments = [node.fragment for node in alive_nodes]
 
         nodes_contacted = len(alive_nodes)
         try:
             recovered_data = self.rs_encoder.decode(available_fragments)
-            print("RS reconstruction successful!")
+            self.logger.log_success("RS reconstruction successful!")
+            self.logger.log_data_summary("Recovered data", recovered_data)
             return recovered_data, nodes_contacted
         except Exception as e:
-            print(f"RS reconstruction failed: {e}")
+            self.logger.log_error(f"RS reconstruction failed: {e}")
             return None, nodes_contacted
 
     def _reconstruct_lrc(self, original_fragments):
         """
         Attempt reconstruction using LRC codes.
         """
-        print("Attempting LRC reconstruction (local repair first)...")
+        self.logger.log_info("Attempting LRC reconstruction (local repair first)...")
         alive_nodes = self.cluster.get_alive_nodes()
 
         # Try local repair first (simplified - just count nodes contacted)
@@ -155,29 +164,12 @@ class Simulator:
         # This is simplified - in practice we'd check group membership
         try:
             recovered_data = self.lrc_encoder.global_decode([f for f in available_fragments if f is not None])
-            print("LRC reconstruction successful!")
+            self.logger.log_success("LRC reconstruction successful!")
+            self.logger.log_data_summary("Recovered data", recovered_data)
             return recovered_data, nodes_contacted
         except Exception as e:
-            print(f"LRC reconstruction failed: {e}")
+            self.logger.log_error(f"LRC reconstruction failed: {e}")
             return None, nodes_contacted
-
-    def _print_comparison(self, rs_failed, rs_contacted, lrc_failed, lrc_contacted,
-                         rs_recovered, lrc_recovered):
-        """
-        Print simulation results and comparison.
-        """
-        print("\n=== SIMULATION RESULTS ===")
-        print(f"Original data: {self.original_data}")
-        print(f"Failed nodes: RS={rs_failed}, LRC={lrc_failed}")
-        print(f"Nodes contacted - RS: {rs_contacted}, LRC: {lrc_contacted}")
-        print(f"RS recovered: {'SUCCESS' if rs_recovered == self.original_data else 'FAILED'}")
-        print(f"LRC recovered: {'SUCCESS' if lrc_recovered == self.original_data else 'FAILED'}")
-
-        if rs_contacted > lrc_contacted:
-            savings = rs_contacted - lrc_contacted
-            print(f"\nLRC advantage: Contacted {savings} fewer nodes than RS!")
-        else:
-            print(f"\nRS and LRC contacted the same number of nodes in this simulation.")
 
     def run_simulation(self):
         """
