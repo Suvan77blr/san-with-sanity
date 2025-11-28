@@ -91,11 +91,13 @@ class EncoderLRC:
         # ------------------------
         # Generate Global RS Parity
         # ------------------------
+        # RS encodes ALL fragments (data + local parity)
+        all_fragments = data_fragments + local_parities
         nsym = self.global_parity * self.fragment_size
         self.rsc = RSCodec(nsym)
 
-        # Encode entire data-region at once
-        codeword = self.rsc.encode(b"".join(data_fragments))
+        # Encode all fragments at once
+        codeword = self.rsc.encode(b"".join(all_fragments))
 
         # Extract RS parity (last bytes)
         rs_parity = codeword[-nsym:]
@@ -107,7 +109,7 @@ class EncoderLRC:
             end = start + self.fragment_size
             global_parity_frags.append(rs_parity[start:end])
 
-        return data_fragments + local_parities + global_parity_frags
+        return all_fragments + global_parity_frags
 
     # ----------------------------------------------------------------------
     # LOCAL REPAIR
