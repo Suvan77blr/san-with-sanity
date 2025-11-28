@@ -6,14 +6,13 @@ Modify these values to change simulation behavior.
 """
 
 # Simulation parameters
-NUM_NODES = 9          # Changing as per BigBro suggestion.
-# NUM_NODES = 10          # Total number of storage nodes
+NUM_NODES = 10          # Total number of storage nodes (must be >= max(RS total, LRC total))
 FAILURE_COUNT = 2       # Number of nodes that will fail during simulation
 THREAD_DELAY_MS = 100   # Delay between thread operations (milliseconds)
 
 # Reed-Solomon parameters
 RS_K = 6  # Number of data fragments
-RS_R = 4  # Number of parity fragments (total fragments = k + r)
+RS_R = 4  # Number of parity fragments (total fragments = k + r = 10)
 
 # Local Reconstruction Code parameters
 LRC_K = 6               # Number of data fragments

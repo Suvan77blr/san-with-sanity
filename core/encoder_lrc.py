@@ -159,6 +159,27 @@ class EncoderLRC:
         Missing fragments (data+local parity) are treated as erasures.
         """
 
+        # Check if all fragments are present
+        missing_count = sum(1 for f in fragments if f is None)
+
+        if missing_count == 0:
+            # All fragments present - extract data fragments directly
+            data = []
+            for i in range(self.k):
+                data.append(fragments[i])
+
+            # Combine into final data
+            out = bytearray()
+            for frag in data:
+                out.extend(frag)
+
+            # Remove zero padding
+            while out and out[-1] == 0:
+                out.pop()
+
+            return bytes(out)
+
+        # Some fragments missing - use RS correction
         # Construct full codeword
         full_len = self.total_fragments * self.fragment_size
         codeword = bytearray(full_len)
@@ -172,7 +193,7 @@ class EncoderLRC:
                 continue
             codeword[start:start + self.fragment_size] = fragments[idx]
 
-        # Decode
+        # Decode with erasures
         decoded = self.rsc.decode(bytes(codeword), erase_pos=erasures)
 
         # decoded = (data, parity)

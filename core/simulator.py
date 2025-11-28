@@ -26,6 +26,8 @@ class Simulator:
         self.rs_r = RS_R
         self.lrc_k = LRC_K
         self.lrc_local_parity = LRC_LOCAL_PARITY
+        self.lrc_group_size = 3  # Default group size for LRC
+        self.lrc_global_parity = 1  # Number of global RS parity fragments
         self.thread_delay = THREAD_DELAY_MS / 1000.0  # Convert to seconds
 
         self.cluster = None
@@ -61,17 +63,26 @@ class Simulator:
         lrc_recovered_data, lrc_nodes_contacted = self._reconstruct_lrc(lrc_fragments)
 
         # Results comparison
-        # Convert recovered data back to string for comparison
-        rs_recovered_str = rs_recovered_data.decode('utf-8') if rs_recovered_data else None
-        lrc_recovered_str = lrc_recovered_data.decode('utf-8') if lrc_recovered_data else None
+        # Compare recovered bytes with original bytes (handle length differences)
+        rs_success = False
+        if rs_recovered_data:
+            # Trim recovered data to original length and compare
+            trimmed_rs = rs_recovered_data[:len(self.original_data.encode('utf-8'))]
+            rs_success = trimmed_rs == self.original_data.encode('utf-8')
+
+        lrc_success = False
+        if lrc_recovered_data:
+            # Trim recovered data to original length and compare
+            trimmed_lrc = lrc_recovered_data[:len(self.original_data.encode('utf-8'))]
+            lrc_success = trimmed_lrc == self.original_data.encode('utf-8')
 
         rs_stats = {
             'nodes_contacted': rs_nodes_contacted,
-            'success': rs_recovered_str == self.original_data if rs_recovered_str else False
+            'success': rs_success
         }
         lrc_stats = {
             'nodes_contacted': lrc_nodes_contacted,
-            'success': lrc_recovered_str == self.original_data if lrc_recovered_str else False
+            'success': lrc_success
         }
 
         self.logger.log_simulation_results(rs_stats, lrc_stats)
@@ -83,7 +94,7 @@ class Simulator:
         self.logger.log_info("Initializing cluster and encoders...")
         self.cluster = Cluster(self.num_nodes)
         self.rs_encoder = EncoderRS(self.rs_k, self.rs_r)
-        self.lrc_encoder = EncoderLRC(self.lrc_k, self.lrc_local_parity)
+        self.lrc_encoder = EncoderLRC(self.lrc_k, self.lrc_group_size, self.lrc_local_parity, self.lrc_global_parity)
         time.sleep(self.thread_delay)
 
     def _encode_data_rs(self):
@@ -149,7 +160,12 @@ class Simulator:
         try:
             recovered_data = self.rs_encoder.decode(valid_fragments)
             self.logger.log_success("RS reconstruction successful!")
-            self.logger.log_data_summary("Recovered data", recovered_data.decode('utf-8') if recovered_data else None)
+            # Log recovered data safely
+            try:
+                recovered_str = recovered_data.decode('utf-8', errors='replace')[:50] + "..." if len(recovered_data) > 50 else recovered_data.decode('utf-8', errors='replace')
+                self.logger.log_data_summary("Recovered data", recovered_str)
+            except:
+                self.logger.log_data_summary("Recovered data", f"{len(recovered_data)} bytes")
             return recovered_data, nodes_contacted
         except Exception as e:
             self.logger.log_error(f"RS reconstruction failed: {e}")
@@ -173,12 +189,16 @@ class Simulator:
 
         nodes_contacted = len(alive_nodes)
 
-        # For demonstration, assume local repair when possible
-        # This is simplified - in practice we'd check group membership
+        # For demonstration, use global repair (simplified - in practice we'd try local repair first)
         try:
-            recovered_data = self.lrc_encoder.global_decode(available_fragments)
+            recovered_data = self.lrc_encoder.global_repair(available_fragments)
             self.logger.log_success("LRC reconstruction successful!")
-            self.logger.log_data_summary("Recovered data", recovered_data.decode('utf-8') if recovered_data else None)
+            # Log recovered data safely
+            try:
+                recovered_str = recovered_data.decode('utf-8', errors='replace')[:50] + "..." if len(recovered_data) > 50 else recovered_data.decode('utf-8', errors='replace')
+                self.logger.log_data_summary("Recovered data", recovered_str)
+            except:
+                self.logger.log_data_summary("Recovered data", f"{len(recovered_data)} bytes")
             return recovered_data, nodes_contacted
         except Exception as e:
             self.logger.log_error(f"LRC reconstruction failed: {e}")
