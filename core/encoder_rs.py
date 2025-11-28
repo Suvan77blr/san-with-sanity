@@ -101,27 +101,3 @@ class EncoderRS:
             reconstructed.pop()
 
         return bytes(reconstructed)
-
-    def encode(self, data):
-        """
-        Encode data into k data fragments and r parity fragments.
-
-        Args:
-            data: Input data to encode
-
-        Returns:
-            List of encoded fragments (data + parity)
-        """
-        pass
-
-    def decode(self, fragments):
-        """
-        Decode and recover original data from available fragments.
-
-        Args:
-            fragments: List of available fragments
-
-        Returns:
-            Recovered original data
-        """
-        pass

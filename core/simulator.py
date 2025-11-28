@@ -61,13 +61,17 @@ class Simulator:
         lrc_recovered_data, lrc_nodes_contacted = self._reconstruct_lrc(lrc_fragments)
 
         # Results comparison
+        # Convert recovered data back to string for comparison
+        rs_recovered_str = rs_recovered_data.decode('utf-8') if rs_recovered_data else None
+        lrc_recovered_str = lrc_recovered_data.decode('utf-8') if lrc_recovered_data else None
+
         rs_stats = {
             'nodes_contacted': rs_nodes_contacted,
-            'success': rs_recovered_data == self.original_data if rs_recovered_data else False
+            'success': rs_recovered_str == self.original_data if rs_recovered_str else False
         }
         lrc_stats = {
             'nodes_contacted': lrc_nodes_contacted,
-            'success': lrc_recovered_data == self.original_data if lrc_recovered_data else False
+            'success': lrc_recovered_str == self.original_data if lrc_recovered_str else False
         }
 
         self.logger.log_simulation_results(rs_stats, lrc_stats)
@@ -136,7 +140,7 @@ class Simulator:
         try:
             recovered_data = self.rs_encoder.decode(available_fragments)
             self.logger.log_success("RS reconstruction successful!")
-            self.logger.log_data_summary("Recovered data", recovered_data)
+            self.logger.log_data_summary("Recovered data", recovered_data.decode('utf-8') if recovered_data else None)
             return recovered_data, nodes_contacted
         except Exception as e:
             self.logger.log_error(f"RS reconstruction failed: {e}")
@@ -165,62 +169,8 @@ class Simulator:
         try:
             recovered_data = self.lrc_encoder.global_decode([f for f in available_fragments if f is not None])
             self.logger.log_success("LRC reconstruction successful!")
-            self.logger.log_data_summary("Recovered data", recovered_data)
+            self.logger.log_data_summary("Recovered data", recovered_data.decode('utf-8') if recovered_data else None)
             return recovered_data, nodes_contacted
         except Exception as e:
             self.logger.log_error(f"LRC reconstruction failed: {e}")
             return None, nodes_contacted
-
-    def run_simulation(self):
-        """
-        Run the complete simulation workflow.
-        """
-        pass
-
-    def _load_constants(self):
-        """
-        Load configuration constants.
-        """
-        pass
-
-    def _initialize_cluster(self):
-        """
-        Create and initialize the node cluster.
-        """
-        pass
-
-    def _encode_data_rs(self, data):
-        """
-        Encode data using Reed-Solomon.
-        """
-        pass
-
-    def _encode_data_lrc(self, data):
-        """
-        Encode data using Local Reconstruction Codes.
-        """
-        pass
-
-    def _simulate_failures(self):
-        """
-        Simulate node failures in the cluster.
-        """
-        pass
-
-    def _reconstruct_rs(self):
-        """
-        Attempt reconstruction using RS codes.
-        """
-        pass
-
-    def _reconstruct_lrc(self):
-        """
-        Attempt reconstruction using LRC codes.
-        """
-        pass
-
-    def _print_results(self):
-        """
-        Print simulation results and comparison.
-        """
-        pass
