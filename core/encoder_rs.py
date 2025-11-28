@@ -1,103 +1,139 @@
 """
-Reed-Solomon encoder for erasure coding.
+encoder_rs.py
+Real Reed-Solomon encoder/decoder using GF(256) via the reedsolo library.
 
-Provides encoding and decoding functionality using simplified RS-like codes.
-Note: This is a demonstration implementation that uses basic XOR operations
-rather than full Reed-Solomon mathematics for simplicity.
+This implementation performs:
+    ✔ RS(k, k+r) block erasure coding
+    ✔ True polynomial-based encoding over GF(256)
+    ✔ Fragmentation of encoded RS codeword into k+r fragments
+    ✔ Reconstruction from any k of the (k+r) fragments
+
+NOTE:
+    RS produces a single long codeword, not chunk-based fragments.
+    We simulate fragment-level erasure coding by splitting the
+    encoded codeword into equal fragments.
+
+Author: ChatGPT (2025)
 """
+
+from reedsolo import RSCodec
+
 
 class EncoderRS:
     """
-    Handles Reed-Solomon encoding and decoding operations.
+    Full Reed–Solomon erasure coding for SAN simulation.
     """
 
-    def __init__(self, k, r):
+    def __init__(self, k: int, r: int):
         """
-        Initialize RS encoder.
-
         Args:
-            k: Number of data fragments
-            r: Number of parity fragments
+            k : Number of data fragments
+            r : Number of parity fragments
         """
         self.k = k
         self.r = r
-        self.total_fragments = k + r
+        self.total = k + r
 
-    def encode(self, data):
+        # reedsolo uses 'nsym' = number of parity bytes
+        self.rsc = None
+        self.nsym = None
+
+    def _init_rs(self, data_len: int):
         """
-        Encode data into k data fragments and r parity fragments.
+        Initialize the RS codec dynamically based on data length.
+
+        Why?
+        RS works on full-byte buffers. We encode the entire data at once.
+        The number of parity bytes = r * fragment_size.
+
+        This ensures that exactly r full fragments worth of parity are created.
+        """
+        fragment_size = (data_len + self.k - 1) // self.k
+        self.nsym = self.r * fragment_size
+        self.rsc = RSCodec(self.nsym)
+        return fragment_size
+
+    # -------------------------------------------------------------------------
+    # ENCODE
+    # -------------------------------------------------------------------------
+    def encode(self, data: bytes | str):
+        """
+        Encode data into k data fragments + r parity fragments.
 
         Args:
-            data: Input data to encode (bytes or string)
+            data : bytes or str
 
         Returns:
-            List of encoded fragments (data + parity)
+            List[bytes] of total = (k + r) fragments
         """
-        # Convert to bytes if string
         if isinstance(data, str):
-            data = data.encode('utf-8')
+            data = data.encode("utf-8")
 
-        # Split data into k fragments
-        fragment_size = len(data) // self.k
-        if len(data) % self.k != 0:
-            fragment_size += 1
+        frag_size = self._init_rs(len(data))
 
-        data_fragments = []
-        for i in range(self.k):
-            start = i * fragment_size
-            end = min((i + 1) * fragment_size, len(data))
-            fragment = data[start:end]
-            # Pad fragment to equal size
-            if len(fragment) < fragment_size:
-                fragment = fragment + b'\x00' * (fragment_size - len(fragment))
-            data_fragments.append(fragment)
+        # Encode full data to a single RS codeword
+        codeword = self.rsc.encode(data)
 
-        # Generate r parity fragments using XOR
-        parity_fragments = []
-        for p in range(self.r):
-            parity = bytearray(fragment_size)
-            for i in range(fragment_size):
-                xor_val = 0
-                for j in range(self.k):
-                    xor_val ^= data_fragments[j][i]
-                parity[i] = xor_val
-            parity_fragments.append(bytes(parity))
+        # Now split into fragments
+        fragments = []
+        for i in range(self.total):
+            start = i * frag_size
+            end = start + frag_size
+            frag = codeword[start:end]
+            fragments.append(frag)
 
-        return data_fragments + parity_fragments
+        return fragments
 
+    # -------------------------------------------------------------------------
+    # DECODE
+    # -------------------------------------------------------------------------
     def decode(self, fragments):
         """
-        Decode and recover original data from available fragments.
+        Decode original data from ANY k available fragments.
 
         Args:
-            fragments: List of available fragments (must have at least k)
+            fragments : List of available fragments
 
         Returns:
-            Recovered original data
+            bytes : original recovered data
+
+        Rules:
+            - We reconstruct a full-length codeword by placing available
+              fragments in their correct positions.
+            - Missing fragments are filled with zero bytes; RSCodec can
+              correct erasures if the number missing is <= r.
         """
         if len(fragments) < self.k:
-            raise ValueError(f"Need at least {self.k} fragments for RS decoding, got {len(fragments)}")
+            raise ValueError(
+                f"Need at least {self.k} fragments for RS decoding, got {len(fragments)}"
+            )
 
-        # For this simplified implementation, we can reconstruct from any k fragments
-        # Take the first k fragments and combine them
-        available_fragments = fragments[:self.k]
+        # Each fragment is of equal size
+        frag_size = len(fragments[0])
 
-        if not available_fragments:
-            raise ValueError("No fragments available for decoding")
+        # Rebuild full codeword (k+r fragments)
+        # Fill missing fragments with zeros ("erasures")
+        codeword = bytearray(self.total * frag_size)
 
-        # Get fragment size from the first fragment
-        fragment_size = len(available_fragments[0])
+        # Track erasure positions (byte-level indices)
+        erasures = []
 
-        # Reconstruct data by concatenating the fragments
-        reconstructed = bytearray()
-        for i in range(fragment_size):
-            for fragment in available_fragments:
-                if i < len(fragment):
-                    reconstructed.append(fragment[i])
-                    break
+        for i in range(self.total):
+            if i < len(fragments) and fragments[i] is not None:
+                # Fragment available → place into codeword
+                start = i * frag_size
+                codeword[start:start + frag_size] = fragments[i]
+            else:
+                # Fragment missing → mark erasures
+                start = i * frag_size
+                for j in range(frag_size):
+                    erasures.append(start + j)
+                # leave zeros in codeword
 
-        # Remove padding (null bytes at the end)
-        while reconstructed and reconstructed[-1] == 0:
-            reconstructed.pop()
+        # Let RSCodec correct erasures
+        corrected = self.rsc.decode(bytes(codeword), erase_pos=erasures)
 
-        return bytes(reconstructed)
+        # decode() returns (decoded_data, parity) → we want original data only
+        decoded_data = corrected[0]
+
+        return decoded_data

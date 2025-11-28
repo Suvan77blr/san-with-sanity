@@ -1,166 +1,197 @@
 """
-Local Reconstruction Code (LRC) encoder.
+Real Local Reconstruction Codes (LRC) encoder with:
 
-Implements local XOR parity groups with global parity for efficient recovery.
-Divides k data fragments into groups with local parity, plus global parity.
+  • Local parity groups (XOR)
+  • Global Reed–Solomon parity over GF(256)
+
+This mirrors Azure-LRC and HDFS LRC behavior:
+    - Fast local repair: 1 missing → repair via XOR within group
+    - Slow global repair: multi-missing → global RS-based repair
+
+Author: ChatGPT (2025)
 """
+
+from reedsolo import RSCodec
+
 
 class EncoderLRC:
     """
-    Handles Local Reconstruction Code encoding and decoding operations.
+    Full Azure-style LRC encoder with:
+        - k data fragments
+        - g local parity groups
+        - 1 global RS parity set
     """
 
-    def __init__(self, k, local_parity):
+    def __init__(self, k: int, group_size: int, local_parity: int = 1, global_parity: int = 2):
         """
-        Initialize LRC encoder.
-
         Args:
-            k: Number of data fragments
-            local_parity: Number of local parity fragments per group
+            k            : number of data fragments
+            group_size   : number of data fragments per group
+            local_parity : number of local parity fragments per group
+            global_parity: number of RS global parity fragments
         """
+
         self.k = k
+        self.group_size = group_size
         self.local_parity = local_parity
-        # For k=6, local_parity=1: divide into 2 groups of 3
-        self.group_size = 3  # Fixed for this implementation
-        self.num_groups = k // self.group_size
-        self.total_fragments = k + (self.num_groups * local_parity) + 1  # +1 for global parity
+        self.global_parity = global_parity
 
-    def encode(self, data):
+        # Number of data groups (rounded up)
+        self.num_groups = (k + group_size - 1) // group_size
+
+        # Total fragments: data + local + global
+        self.total_fragments = (
+            k + (self.num_groups * local_parity) + global_parity
+        )
+
+        self.rsc = None  # RS object
+        self.fragment_size = None
+
+    # ----------------------------------------------------------------------
+    # ENCODE
+    # ----------------------------------------------------------------------
+    def encode(self, data: bytes | str):
         """
-        Encode data using LRC with local and global parity.
-
-        Args:
-            data: Input data to encode
-
-        Returns:
-            List of encoded fragments (data + local parity + global parity)
+        Encode data into data + local parity + global RS parity.
         """
-        # Convert to bytes if string
+
         if isinstance(data, str):
-            data = data.encode('utf-8')
+            data = data.encode("utf-8")
 
-        # Split data into k fragments
-        fragment_size = len(data) // self.k
-        if len(data) % self.k != 0:
-            fragment_size += 1
+        # Compute fragment size (pad last fragment)
+        self.fragment_size = (len(data) + self.k - 1) // self.k
 
+        # Split into k data fragments
         data_fragments = []
         for i in range(self.k):
-            start = i * fragment_size
-            end = min((i + 1) * fragment_size, len(data))
-            fragment = data[start:end]
-            # Pad fragment to equal size
-            if len(fragment) < fragment_size:
-                fragment = fragment + b'\x00' * (fragment_size - len(fragment))
-            data_fragments.append(fragment)
+            start = i * self.fragment_size
+            end = start + self.fragment_size
+            frag = data[start:end]
+            frag = frag + b"\x00" * (self.fragment_size - len(frag))
+            data_fragments.append(frag)
 
-        # Generate local parity for each group
-        local_parity_fragments = []
-        for group in range(self.num_groups):
-            start_idx = group * self.group_size
-            end_idx = start_idx + self.group_size
-            group_fragments = data_fragments[start_idx:end_idx]
+        # ------------------------
+        # Generate Local Parity
+        # ------------------------
+        local_parities = []
+        for grp in range(self.num_groups):
+            start = grp * self.group_size
+            end = min(start + self.group_size, self.k)
+            group_frags = data_fragments[start:end]
 
-            # XOR all fragments in the group for local parity
-            parity = bytearray(fragment_size)
-            for i in range(fragment_size):
-                xor_val = 0
-                for fragment in group_fragments:
-                    xor_val ^= fragment[i]
-                parity[i] = xor_val
-            local_parity_fragments.append(bytes(parity))
+            # XOR of all group fragments for L1 parity
+            parity = bytearray(self.fragment_size)
+            for i in range(self.fragment_size):
+                v = 0
+                for frag in group_frags:
+                    v ^= frag[i]
+                parity[i] = v
+            local_parities.append(bytes(parity))
 
-        # Generate global parity (XOR of all data fragments)
-        global_parity = bytearray(fragment_size)
-        for i in range(fragment_size):
-            xor_val = 0
-            for fragment in data_fragments:
-                xor_val ^= fragment[i]
-            global_parity[i] = xor_val
+        # ------------------------
+        # Generate Global RS Parity
+        # ------------------------
+        nsym = self.global_parity * self.fragment_size
+        self.rsc = RSCodec(nsym)
 
-        return data_fragments + local_parity_fragments + [bytes(global_parity)]
+        # Encode entire data-region at once
+        codeword = self.rsc.encode(b"".join(data_fragments))
 
-    def local_decode(self, fragments, group_id):
+        # Extract RS parity (last bytes)
+        rs_parity = codeword[-nsym:]
+
+        # Split RS parity into fragments
+        global_parity_frags = []
+        for i in range(self.global_parity):
+            start = i * self.fragment_size
+            end = start + self.fragment_size
+            global_parity_frags.append(rs_parity[start:end])
+
+        return data_fragments + local_parities + global_parity_frags
+
+    # ----------------------------------------------------------------------
+    # LOCAL REPAIR
+    # ----------------------------------------------------------------------
+    def local_repair(self, fragments, missing_index):
         """
-        Attempt local reconstruction within a specific group.
-
-        Args:
-            fragments: Available fragments
-            group_id: ID of the group to reconstruct (0-based)
-
-        Returns:
-            Recovered fragment or None if local repair fails
+        Fast local XOR-based recovery for a *single* missing data fragment.
+        Returns bytes or None.
         """
-        if group_id >= self.num_groups:
+
+        group_id = missing_index // self.group_size
+        start = group_id * self.group_size
+        end = min(start + self.group_size, self.k)
+
+        local_parity_idx = self.k + group_id  # index of that group's local parity
+
+        # If local parity is missing, local repair impossible
+        if fragments[local_parity_idx] is None:
             return None
 
-        # Get fragments for this group and its local parity
-        start_data = group_id * self.group_size
-        end_data = start_data + self.group_size
-        local_parity_idx = self.k + group_id
+        # Collect available fragments
+        available = []
+        for i in range(start, end):
+            if fragments[i] is not None and i != missing_index:
+                available.append(fragments[i])
 
-        group_fragments = []
-        local_parity = None
+        # Need group_size - 1 data frags + local parity
+        if len(available) != (end - start - 1):
+            return None
 
-        # Collect available fragments for this group
-        for i in range(start_data, end_data):
-            if i < len(fragments) and fragments[i] is not None:
-                group_fragments.append((i, fragments[i]))
+        # XOR them back
+        reconstructed = bytearray(self.fragment_size)
 
-        # Get local parity if available
-        if local_parity_idx < len(fragments) and fragments[local_parity_idx] is not None:
-            local_parity = fragments[local_parity_idx]
-
-        # Need at least group_size - 1 data fragments + local parity for local repair
-        if len(group_fragments) >= self.group_size - 1 and local_parity is not None:
-            # Find which fragment is missing
-            present_indices = {idx for idx, _ in group_fragments}
-            missing_idx = None
-            for i in range(start_data, end_data):
-                if i not in present_indices:
-                    missing_idx = i
-                    break
-
-            if missing_idx is not None:
-                # Reconstruct missing fragment using XOR of others + local parity
-                reconstructed = bytearray(len(local_parity))
-                for i in range(len(local_parity)):
-                    xor_val = local_parity[i]  # Start with local parity
-                    for _, fragment in group_fragments:
-                        xor_val ^= fragment[i]
-                    reconstructed[i] = xor_val
-                return missing_idx, bytes(reconstructed)
-
-        return None
-
-    def global_decode(self, fragments):
-        """
-        Perform global reconstruction using all available fragments.
-
-        Args:
-            fragments: Available fragments (list where None indicates missing)
-
-        Returns:
-            Recovered original data
-        """
-        available_fragments = [f for f in fragments if f is not None]
-        if len(available_fragments) < self.k:
-            raise ValueError(f"Need at least {self.k} fragments for LRC global decoding")
-
-        # Use the first k available fragments to reconstruct
-        # In a real LRC, we'd use the global parity, but for simplicity:
-        fragment_size = len(available_fragments[0])
-
-        # Reconstruct data by concatenating the fragments
-        reconstructed = bytearray()
-        for i in range(fragment_size):
-            for fragment in available_fragments[:self.k]:
-                if i < len(fragment):
-                    reconstructed.append(fragment[i])
-                    break
-
-        # Remove padding
-        while reconstructed and reconstructed[-1] == 0:
-            reconstructed.pop()
+        for i in range(self.fragment_size):
+            v = fragments[local_parity_idx][i]
+            for frag in available:
+                v ^= frag[i]
+            reconstructed[i] = v
 
         return bytes(reconstructed)
+
+    # ----------------------------------------------------------------------
+    # GLOBAL REPAIR (RS)
+    # ----------------------------------------------------------------------
+    def global_repair(self, fragments):
+        """
+        Perform RS-based global recovery of the full data stream.
+
+        Missing fragments (data+local parity) are treated as erasures.
+        """
+
+        # Construct full codeword
+        full_len = self.total_fragments * self.fragment_size
+        codeword = bytearray(full_len)
+        erasures = []
+
+        for idx in range(self.total_fragments):
+            start = idx * self.fragment_size
+            if fragments[idx] is None:
+                for b in range(self.fragment_size):
+                    erasures.append(start + b)
+                continue
+            codeword[start:start + self.fragment_size] = fragments[idx]
+
+        # Decode
+        decoded = self.rsc.decode(bytes(codeword), erase_pos=erasures)
+
+        # decoded = (data, parity)
+        data_bytes = decoded[0]
+
+        # Extract the k original data fragments
+        data = []
+        for i in range(self.k):
+            start = i * self.fragment_size
+            end = start + self.fragment_size
+            data.append(data_bytes[start:end])
+
+        # Combine into final data
+        out = bytearray()
+        for frag in data:
+            out.extend(frag)
+
+        # Remove zero padding
+        while out and out[-1] == 0:
+            out.pop()
+
+        return bytes(out)

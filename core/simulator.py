@@ -133,12 +133,21 @@ class Simulator:
         Attempt reconstruction using RS codes.
         """
         self.logger.log_info("Attempting RS reconstruction...")
-        alive_nodes = self.cluster.get_alive_nodes()
-        available_fragments = [node.fragment for node in alive_nodes]
+        # Create ordered fragment list (None for failed nodes)
+        available_fragments = []
+        alive_count = 0
+        for node in self.cluster.nodes:
+            if node.is_alive:
+                available_fragments.append(node.fragment)
+                alive_count += 1
+            else:
+                available_fragments.append(None)
 
-        nodes_contacted = len(alive_nodes)
+        nodes_contacted = alive_count
+        # Filter out None values for RS decoding
+        valid_fragments = [f for f in available_fragments if f is not None]
         try:
-            recovered_data = self.rs_encoder.decode(available_fragments)
+            recovered_data = self.rs_encoder.decode(valid_fragments)
             self.logger.log_success("RS reconstruction successful!")
             self.logger.log_data_summary("Recovered data", recovered_data.decode('utf-8') if recovered_data else None)
             return recovered_data, nodes_contacted
@@ -167,7 +176,7 @@ class Simulator:
         # For demonstration, assume local repair when possible
         # This is simplified - in practice we'd check group membership
         try:
-            recovered_data = self.lrc_encoder.global_decode([f for f in available_fragments if f is not None])
+            recovered_data = self.lrc_encoder.global_decode(available_fragments)
             self.logger.log_success("LRC reconstruction successful!")
             self.logger.log_data_summary("Recovered data", recovered_data.decode('utf-8') if recovered_data else None)
             return recovered_data, nodes_contacted

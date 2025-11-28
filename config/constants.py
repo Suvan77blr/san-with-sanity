@@ -6,7 +6,8 @@ Modify these values to change simulation behavior.
 """
 
 # Simulation parameters
-NUM_NODES = 10          # Total number of storage nodes
+NUM_NODES = 9          # Changing as per BigBro suggestion.
+# NUM_NODES = 10          # Total number of storage nodes
 FAILURE_COUNT = 2       # Number of nodes that will fail during simulation
 THREAD_DELAY_MS = 100   # Delay between thread operations (milliseconds)
 
