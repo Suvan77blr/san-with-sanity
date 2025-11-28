@@ -27,7 +27,7 @@ class Simulator:
         self.lrc_k = LRC_K
         self.lrc_local_parity = LRC_LOCAL_PARITY
         self.lrc_group_size = 3  # Default group size for LRC
-        self.lrc_global_parity = 1  # Number of global RS parity fragments
+        self.lrc_global_parity = 2  # Number of global RS parity fragments (increased for 2 failure tolerance)
         self.thread_delay = THREAD_DELAY_MS / 1000.0  # Convert to seconds
 
         self.cluster = None
@@ -155,10 +155,9 @@ class Simulator:
                 available_fragments.append(None)
 
         nodes_contacted = alive_count
-        # Filter out None values for RS decoding
-        valid_fragments = [f for f in available_fragments if f is not None]
+        # Pass the full ordered list with None values for missing fragments
         try:
-            recovered_data = self.rs_encoder.decode(valid_fragments)
+            recovered_data = self.rs_encoder.decode(available_fragments)
             self.logger.log_success("RS reconstruction successful!")
             # Log recovered data safely
             try:
