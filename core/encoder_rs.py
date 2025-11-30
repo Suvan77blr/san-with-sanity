@@ -13,7 +13,7 @@ NOTE:
     We simulate fragment-level erasure coding by splitting the
     encoded codeword into equal fragments.
 
-Author: ChatGPT (2025)
+ 
 """
 
 from reedsolo import RSCodec

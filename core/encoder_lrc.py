@@ -8,7 +8,7 @@ This mirrors Azure-LRC and HDFS LRC behavior:
     - Fast local repair: 1 missing → repair via XOR within group
     - Slow global repair: multi-missing → global RS-based repair
 
-Author: ChatGPT (2025)
+ 
 """
 
 from reedsolo import RSCodec
