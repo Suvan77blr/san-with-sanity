@@ -8,7 +8,7 @@ This mirrors Azure-LRC and HDFS LRC behavior:
     - Fast local repair: 1 missing → repair via XOR within group
     - Slow global repair: multi-missing → global RS-based repair
 
-Author: ChatGPT (2025)
+ 
 """
 
 from reedsolo import RSCodec
@@ -91,11 +91,13 @@ class EncoderLRC:
         # ------------------------
         # Generate Global RS Parity
         # ------------------------
+        # RS encodes ALL fragments (data + local parity)
+        all_fragments = data_fragments + local_parities
         nsym = self.global_parity * self.fragment_size
         self.rsc = RSCodec(nsym)
 
-        # Encode entire data-region at once
-        codeword = self.rsc.encode(b"".join(data_fragments))
+        # Encode all fragments at once
+        codeword = self.rsc.encode(b"".join(all_fragments))
 
         # Extract RS parity (last bytes)
         rs_parity = codeword[-nsym:]
@@ -107,7 +109,7 @@ class EncoderLRC:
             end = start + self.fragment_size
             global_parity_frags.append(rs_parity[start:end])
 
-        return data_fragments + local_parities + global_parity_frags
+        return all_fragments + global_parity_frags
 
     # ----------------------------------------------------------------------
     # LOCAL REPAIR
@@ -159,6 +161,27 @@ class EncoderLRC:
         Missing fragments (data+local parity) are treated as erasures.
         """
 
+        # Check if all fragments are present
+        missing_count = sum(1 for f in fragments if f is None)
+
+        if missing_count == 0:
+            # All fragments present - extract data fragments directly
+            data = []
+            for i in range(self.k):
+                data.append(fragments[i])
+
+            # Combine into final data
+            out = bytearray()
+            for frag in data:
+                out.extend(frag)
+
+            # Remove zero padding
+            while out and out[-1] == 0:
+                out.pop()
+
+            return bytes(out)
+
+        # Some fragments missing - use RS correction
         # Construct full codeword
         full_len = self.total_fragments * self.fragment_size
         codeword = bytearray(full_len)
@@ -172,7 +195,7 @@ class EncoderLRC:
                 continue
             codeword[start:start + self.fragment_size] = fragments[idx]
 
-        # Decode
+        # Decode with erasures
         decoded = self.rsc.decode(bytes(codeword), erase_pos=erasures)
 
         # decoded = (data, parity)

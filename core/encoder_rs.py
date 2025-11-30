@@ -13,7 +13,7 @@ NOTE:
     We simulate fragment-level erasure coding by splitting the
     encoded codeword into equal fragments.
 
-Author: ChatGPT (2025)
+ 
 """
 
 from reedsolo import RSCodec
@@ -108,8 +108,14 @@ class EncoderRS:
                 f"Need at least {self.k} fragments for RS decoding, got {len(fragments)}"
             )
 
-        # Each fragment is of equal size
-        frag_size = len(fragments[0])
+        # Each fragment is of equal size - find from first available fragment
+        frag_size = None
+        for frag in fragments:
+            if frag is not None:
+                frag_size = len(frag)
+                break
+        if frag_size is None:
+            raise ValueError("No valid fragments available for decoding")
 
         # Rebuild full codeword (k+r fragments)
         # Fill missing fragments with zeros ("erasures")
