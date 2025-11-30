@@ -15,7 +15,7 @@ def main():
     # Create and run the simulator
     simulator = Simulator()
     simulator.run_simulation(
-        "Hello, World! This is a test message for erasure coding simulation. Local Reconstruction Codes (LRC) are a simplified Azure-like variant. Hai Bye Good Night and sleep now."
+        "Hello, World! This is a test message for erasure coding simulation. Local Reconstruction Codes (LRC) are a simplified Azure-like variant. Hai Bye Good Night and sleep now. Shreyas Nagabhushan is a good boy."
     )
 
 if __name__ == "__main__":

@@ -26,8 +26,8 @@ class Simulator:
         self.rs_r = RS_R
         self.lrc_k = LRC_K
         self.lrc_local_parity = LRC_LOCAL_PARITY
-        self.lrc_group_size = 3  # Default group size for LRC
-        self.lrc_global_parity = 2  # Number of global RS parity fragments (increased for 2 failure tolerance)
+        self.lrc_group_size = LRC_GROUP_SIZE
+        self.lrc_global_parity = LRC_GLOBAL_PARITY
         self.thread_delay = THREAD_DELAY_MS / 1000.0  # Convert to seconds
 
         self.cluster = None
