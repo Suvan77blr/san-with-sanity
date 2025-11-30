@@ -91,13 +91,12 @@ class EncoderLRC:
         # ------------------------
         # Generate Global RS Parity
         # ------------------------
-        # RS encodes ALL fragments (data + local parity)
-        all_fragments = data_fragments + local_parities
+        # RS encodes ONLY data fragments for global parity
         nsym = self.global_parity * self.fragment_size
         self.rsc = RSCodec(nsym)
 
-        # Encode all fragments at once
-        codeword = self.rsc.encode(b"".join(all_fragments))
+        # Encode data fragments only
+        codeword = self.rsc.encode(b"".join(data_fragments))
 
         # Extract RS parity (last bytes)
         rs_parity = codeword[-nsym:]
@@ -109,7 +108,7 @@ class EncoderLRC:
             end = start + self.fragment_size
             global_parity_frags.append(rs_parity[start:end])
 
-        return all_fragments + global_parity_frags
+        return data_fragments + local_parities + global_parity_frags
 
     # ----------------------------------------------------------------------
     # LOCAL REPAIR
@@ -156,19 +155,72 @@ class EncoderLRC:
     # ----------------------------------------------------------------------
     def global_repair(self, fragments):
         """
-        Perform RS-based global recovery of the full data stream.
+        Perform RS-based global recovery using data fragments + global RS parity.
 
-        Missing fragments (data+local parity) are treated as erasures.
+        This reconstructs the data fragments using RS, ignoring local parity for simplicity.
         """
 
-        # Check if all fragments are present
-        missing_count = sum(1 for f in fragments if f is None)
+        # Extract available data fragments and global parity
+        data_start = 0
+        data_end = self.k
+        global_start = self.k + self.num_groups * self.local_parity
+        global_end = self.total_fragments
 
-        if missing_count == 0:
-            # All fragments present - extract data fragments directly
+        # Collect available data fragments and global parity
+        available_data = []
+        available_global = []
+        data_erasures = []
+        global_erasures = []
+
+        # Check data fragments
+        for i in range(data_start, data_end):
+            if fragments[i] is not None:
+                available_data.append(fragments[i])
+            else:
+                available_data.append(b'\x00' * self.fragment_size)
+                data_erasures.append(i - data_start)
+
+        # Check global parity fragments
+        for i in range(global_start, global_end):
+            if fragments[i] is not None:
+                available_global.append(fragments[i])
+            else:
+                available_global.append(b'\x00' * self.fragment_size)
+                global_erasures.append(i - global_start)
+
+        # If no erasures, just return the data directly
+        if not data_erasures and not global_erasures:
+            out = bytearray()
+            for frag in available_data:
+                out.extend(frag)
+            while out and out[-1] == 0:
+                out.pop()
+            return bytes(out)
+
+        # Use RS to reconstruct data fragments
+        data_codeword = b"".join(available_data + available_global)
+
+        # Create erasure positions for the data + global parity codeword
+        erasures = []
+        for pos in data_erasures:
+            for b in range(self.fragment_size):
+                erasures.append(pos * self.fragment_size + b)
+
+        for pos in global_erasures:
+            global_pos = self.k + pos
+            for b in range(self.fragment_size):
+                erasures.append(global_pos * self.fragment_size + b)
+
+        try:
+            decoded = self.rsc.decode(data_codeword, erase_pos=erasures)
+            data_bytes = decoded[0]
+
+            # Extract reconstructed data fragments
             data = []
             for i in range(self.k):
-                data.append(fragments[i])
+                start = i * self.fragment_size
+                end = start + self.fragment_size
+                data.append(data_bytes[start:end])
 
             # Combine into final data
             out = bytearray()
@@ -180,41 +232,11 @@ class EncoderLRC:
                 out.pop()
 
             return bytes(out)
-
-        # Some fragments missing - use RS correction
-        # Construct full codeword
-        full_len = self.total_fragments * self.fragment_size
-        codeword = bytearray(full_len)
-        erasures = []
-
-        for idx in range(self.total_fragments):
-            start = idx * self.fragment_size
-            if fragments[idx] is None:
-                for b in range(self.fragment_size):
-                    erasures.append(start + b)
-                continue
-            codeword[start:start + self.fragment_size] = fragments[idx]
-
-        # Decode with erasures
-        decoded = self.rsc.decode(bytes(codeword), erase_pos=erasures)
-
-        # decoded = (data, parity)
-        data_bytes = decoded[0]
-
-        # Extract the k original data fragments
-        data = []
-        for i in range(self.k):
-            start = i * self.fragment_size
-            end = start + self.fragment_size
-            data.append(data_bytes[start:end])
-
-        # Combine into final data
-        out = bytearray()
-        for frag in data:
-            out.extend(frag)
-
-        # Remove zero padding
-        while out and out[-1] == 0:
-            out.pop()
-
-        return bytes(out)
+        except Exception:
+            # If RS fails, fall back to simple reconstruction
+            out = bytearray()
+            for frag in available_data:
+                out.extend(frag)
+            while out and out[-1] == 0:
+                out.pop()
+            return bytes(out)

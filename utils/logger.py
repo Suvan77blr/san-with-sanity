@@ -103,7 +103,7 @@ class Logger:
             data: The data to summarize
         """
         if isinstance(data, str):
-            summary = data[:50] + "..." if len(data) > 50 else data
+            summary = data[:200] + "..." if len(data) > 50 else data
         elif isinstance(data, bytes):
             summary = data[:20].hex() + "..." if len(data) > 20 else data.hex()
         elif isinstance(data, list):

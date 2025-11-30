@@ -67,14 +67,16 @@ class Simulator:
         rs_success = False
         if rs_recovered_data:
             # Trim recovered data to original length and compare
-            trimmed_rs = rs_recovered_data[:len(self.original_data.encode('utf-8'))]
-            rs_success = trimmed_rs == self.original_data.encode('utf-8')
+            original_bytes = self.original_data.encode('utf-8')
+            trimmed_rs = rs_recovered_data[:len(original_bytes)]
+            rs_success = trimmed_rs == original_bytes
 
         lrc_success = False
         if lrc_recovered_data:
             # Trim recovered data to original length and compare
-            trimmed_lrc = lrc_recovered_data[:len(self.original_data.encode('utf-8'))]
-            lrc_success = trimmed_lrc == self.original_data.encode('utf-8')
+            original_bytes = self.original_data.encode('utf-8')
+            trimmed_lrc = lrc_recovered_data[:len(original_bytes)]
+            lrc_success = trimmed_lrc == original_bytes
 
         rs_stats = {
             'nodes_contacted': rs_nodes_contacted,
@@ -161,7 +163,7 @@ class Simulator:
             self.logger.log_success("RS reconstruction successful!")
             # Log recovered data safely
             try:
-                recovered_str = recovered_data.decode('utf-8', errors='replace')[:50] + "..." if len(recovered_data) > 50 else recovered_data.decode('utf-8', errors='replace')
+                recovered_str = recovered_data.decode('utf-8', errors='replace')[:] + "..." if len(recovered_data) > 50 else recovered_data.decode('utf-8', errors='replace')
                 self.logger.log_data_summary("Recovered data", recovered_str)
             except:
                 self.logger.log_data_summary("Recovered data", f"{len(recovered_data)} bytes")
@@ -194,7 +196,7 @@ class Simulator:
             self.logger.log_success("LRC reconstruction successful!")
             # Log recovered data safely
             try:
-                recovered_str = recovered_data.decode('utf-8', errors='replace')[:50] + "..." if len(recovered_data) > 50 else recovered_data.decode('utf-8', errors='replace')
+                recovered_str = recovered_data.decode('utf-8', errors='replace')[:] + "..." if len(recovered_data) > 50 else recovered_data.decode('utf-8', errors='replace')
                 self.logger.log_data_summary("Recovered data", recovered_str)
             except:
                 self.logger.log_data_summary("Recovered data", f"{len(recovered_data)} bytes")
