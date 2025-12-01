@@ -7,10 +7,28 @@ Handles distribution of fragments across nodes and failure simulation.
 import random
 from .node import Node
 
+
 class Cluster:
     """
     Manages a collection of Node objects in the distributed system.
     """
+
+    def fail_nodes_by_indices(self, indices):
+        """
+        Fail nodes by their indices (node_id).
+
+        Args:
+            indices: List of node indices to fail
+
+        Returns:
+            List of node IDs that were failed
+        """
+        failed_ids = []
+        for idx in indices:
+            if 0 <= idx < len(self.nodes):
+                self.nodes[idx].fail()
+                failed_ids.append(self.nodes[idx].node_id)
+        return failed_ids
 
     def __init__(self, num_nodes):
         """

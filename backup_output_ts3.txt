@@ -1,0 +1,81 @@
+(venv) PS C:\GitHub Repo\san-with-sanity> python main.py
+
+=== ERASURE CODING SIMULATOR: RS VS LRC ===
+[INFO] Original Data: We have ceased to be Men,
+A generation of weaklings.
+
+In the name of equality,
+We have long lost chivalry,
+Birthing a hateful mentality,
+[INFO] Initializing cluster and encoders...
+
+=== REED-SOLOMON (RS) SIMULATION ===
+[INFO] Encoding data into 6 data + 3 parity fragments...
+[INFO] RS Fragments created: 9 total
+[INFO] Simulating 1 node failures...
+[INFO] Failed nodes: [4]
+[INFO] Attempting RS reconstruction...
+[SUCCESS] RS reconstruction successful!
+[INFO] Recovered data: We have ceased to be Men,
+A generation of weaklings.
+
+In the name of equality,
+We have long  a hateful mentality,|_b3As2`~;    XDqoKLCi
+
+=== LOCAL RECONSTRUCTION CODE (LRC) SIMULATION ===
+[INFO] Encoding data into 6 data + local/global parity fragments...
+[INFO] LRC Fragments created: 10 total
+[INFO] Simulating 1 node failures (guaranteed single data failure)...
+[INFO] Failed nodes: [0] (data failure at 0)
+[INFO] Attempting LRC reconstruction (local repair first)...
+[INFO] Single data failure at position 0 (group 0)
+[INFO] Local parity at position 6
+[SUCCESS] ✓✓✓ LOCAL REPAIR POSSIBLE ✓✓✓
+[SUCCESS] ✓ Using ONLY 3 fragments (2 data + 1 local parity)
+[SUCCESS] ✓ No GF(256) operations needed!
+[SUCCESS] LRC reconstruction successful! (Strategy: LOCAL)
+[INFO] Recovered data: We have ceased to be Men,
+A generation of weaklings.
+
+In the name of equality,
+We have long lost chivalry,
+Birthing a hateful mentality,
+
+=== FINAL RESULTS ===
+[INFO] Reed-Solomon (RS) Results:
+[INFO]   - Nodes contacted: 9
+[INFO]   - Recovery: FAILED
+[INFO] Local Reconstruction Code (LRC) Results:
+[INFO]   - Nodes contacted: 9
+[INFO]   - Recovery: SUCCESS
+[INFO] RS and LRC contacted the same number of nodes in this simulation       
+
+=== PERFORMANCE METRICS COMPARISON ===
+
+=== EFFICIENCY METRICS ===
+[INFO] Reed-Solomon (RS):
+[INFO]   - Bandwidth Efficiency: 65.70%
+[INFO]   - Fragments Accessed: 6 / 9
+[INFO]   - Data Accessed (bytes): 138
+[INFO] Local Reconstruction Code (LRC):
+[INFO]   - Bandwidth Efficiency: 59.13%
+[INFO]   - Fragments Accessed: 3 / 10
+[INFO]   - Data Accessed (bytes): 69
+
+=== COMPUTATION COMPLEXITY ===
+[INFO] Reed-Solomon (RS):
+[INFO]   - XOR Operations: 552
+[INFO]   - GF(256) Multiplications: 1,104
+[INFO] Local Reconstruction Code (LRC):
+[INFO]   - XOR Operations: 368
+[INFO]   - GF(256) Multiplications: 0
+
+=== RECOVERY TIME ===
+[INFO] Reed-Solomon (RS): 0.5391 ms
+[INFO] Local Reconstruction Code (LRC): 0.0000 ms
+
+=== LRC ADVANTAGES OVER RS ===
+[SUCCESS] ✓ Bandwidth Saved: 69 bytes (50.0%)
+[SUCCESS] ✓ Reduced XOR Operations: 33.3% fewer
+[SUCCESS] ✓ Reduced Multiplications: 100.0% fewer (local repair advantage)    
+[SUCCESS] ✓ Recovery Time Faster: 0.5391 ms (100.0%)

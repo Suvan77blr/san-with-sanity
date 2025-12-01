@@ -103,9 +103,9 @@ class Logger:
             data: The data to summarize
         """
         if isinstance(data, str):
-            summary = data[:200] + "..." if len(data) > 50 else data
+            summary = data[:200] + "..." if len(data) > 200 else data
         elif isinstance(data, bytes):
-            summary = data[:20].hex() + "..." if len(data) > 20 else data.hex()
+            summary = data[:20].hex() + "..." if len(data) > 80 else data.hex()
         elif isinstance(data, list):
             summary = f"List of {len(data)} items"
         else:
@@ -140,3 +140,76 @@ class Logger:
             self.log_info("RS and LRC contacted the same number of nodes in this simulation")
         else:
             self.log_info("RS contacted fewer nodes than LRC in this simulation")
+
+    def log_metrics_comparison(self, metrics_summary):
+        """
+        Log detailed metrics comparison between RS and LRC.
+
+        Args:
+            metrics_summary: Dict containing RS and LRC metrics and comparison
+        """
+        self.log_header("PERFORMANCE METRICS COMPARISON")
+        
+        rs = metrics_summary.get('rs_metrics')
+        lrc = metrics_summary.get('lrc_metrics')
+        comparison = metrics_summary.get('comparison')
+        
+        if not rs or not lrc:
+            self.log_error("Metrics not available for comparison")
+            return
+        
+        # Efficiency Metrics
+        self.log_header("Efficiency Metrics")
+        self.log_info(f"Reed-Solomon (RS):")
+        self.log_info(f"  - Bandwidth Efficiency: {rs['bandwidth_efficiency']:.2f}%")
+        self.log_info(f"  - Fragments Accessed: {rs['fragments_accessed']} / {rs['total_fragments']}")
+        self.log_info(f"  - Data Accessed (bytes): {rs['fragments_accessed_bytes']}")
+        
+        self.log_info(f"Local Reconstruction Code (LRC):")
+        self.log_info(f"  - Bandwidth Efficiency: {lrc['bandwidth_efficiency']:.2f}%")
+        self.log_info(f"  - Fragments Accessed: {lrc['fragments_accessed']} / {lrc['total_fragments']}")
+        self.log_info(f"  - Data Accessed (bytes): {lrc['fragments_accessed_bytes']}")
+        
+        # Computation Metrics
+        self.log_header("Computation Complexity")
+        self.log_info(f"Reed-Solomon (RS):")
+        self.log_info(f"  - XOR Operations: {rs['xor_operations']:,}")
+        self.log_info(f"  - GF(256) Multiplications: {rs['multiplication_operations']:,}")
+        
+        self.log_info(f"Local Reconstruction Code (LRC):")
+        self.log_info(f"  - XOR Operations: {lrc['xor_operations']:,}")
+        self.log_info(f"  - GF(256) Multiplications: {lrc['multiplication_operations']:,}")
+        
+        # Time Metrics
+        self.log_header("Recovery Time")
+        self.log_info(f"Reed-Solomon (RS): {rs['recovery_time']:.4f} ms")
+        self.log_info(f"Local Reconstruction Code (LRC): {lrc['recovery_time']:.4f} ms")
+        
+        # Advantages
+        self.log_header("LRC Advantages over RS")
+        
+        if comparison:
+            nodes_saved = comparison.get('nodes_saved', {})
+            bandwidth_saved = comparison.get('bandwidth_saved', {})
+            time_improvement = comparison.get('recovery_time_improvement', {})
+            xor_ratio = comparison.get('xor_operations_ratio', 0)
+            mult_ratio = comparison.get('multiplication_operations_ratio', 0)
+            
+            if nodes_saved.get('value', 0) > 0:
+                self.log_success(f"✓ Nodes Saved: {nodes_saved['value']} ({nodes_saved['percentage']:.1f}%)")
+            
+            if bandwidth_saved.get('value', 0) > 0:
+                self.log_success(f"✓ Bandwidth Saved: {bandwidth_saved['value']} bytes ({bandwidth_saved['percentage']:.1f}%)")
+            elif bandwidth_saved.get('value', 0) == 0:
+                self.log_info(f"  Bandwidth: Same as RS ({lrc['fragments_accessed_bytes']} bytes)")
+            
+            if xor_ratio < 1:
+                savings_pct = (1 - xor_ratio) * 100
+                self.log_success(f"✓ Reduced XOR Operations: {savings_pct:.1f}% fewer")
+            
+            if mult_ratio < 1:
+                savings_pct = (1 - mult_ratio) * 100
+                self.log_success(f"✓ Reduced Multiplications: {savings_pct:.1f}% fewer (local repair advantage)")
+            
+            if time_improvement.get('value', 0) > 0:
+                self.log_success(f"✓ Recovery Time Faster: {time_improvement['value']:.4f} ms ({time_improvement['percentage']:.1f}%)")

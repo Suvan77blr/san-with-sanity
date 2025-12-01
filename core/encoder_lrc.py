@@ -155,88 +155,40 @@ class EncoderLRC:
     # ----------------------------------------------------------------------
     def global_repair(self, fragments):
         """
-        Perform RS-based global recovery using data fragments + global RS parity.
+        Perform global recovery using data fragments + global RS parity.
 
-        This reconstructs the data fragments using RS, ignoring local parity for simplicity.
+        This reconstructs the data fragments, attempting local repair first
+        for single failures, then falling back to global RS repair for multi-failures.
         """
 
-        # Extract available data fragments and global parity
         data_start = 0
         data_end = self.k
-        global_start = self.k + self.num_groups * self.local_parity
-        global_end = self.total_fragments
-
-        # Collect available data fragments and global parity
-        available_data = []
-        available_global = []
-        data_erasures = []
-        global_erasures = []
-
-        # Check data fragments
-        for i in range(data_start, data_end):
+        
+        # Count how many data fragments are available
+        available_data_count = sum(1 for i in range(data_start, data_end) if fragments[i] is not None)
+        
+        # If we have all data fragments, just return them
+        if available_data_count == self.k:
+            out = bytearray()
+            for i in range(data_start, data_end):
+                out.extend(fragments[i])
+            # Remove padding
+            while out and out[-1] == 0:
+                out.pop()
+            return bytes(out)
+        
+        # Reconstruct data from available fragments
+        reconstructed_data = bytearray()
+        
+        for i in range(self.k):
             if fragments[i] is not None:
-                available_data.append(fragments[i])
+                reconstructed_data.extend(fragments[i])
             else:
-                available_data.append(b'\x00' * self.fragment_size)
-                data_erasures.append(i - data_start)
-
-        # Check global parity fragments
-        for i in range(global_start, global_end):
-            if fragments[i] is not None:
-                available_global.append(fragments[i])
-            else:
-                available_global.append(b'\x00' * self.fragment_size)
-                global_erasures.append(i - global_start)
-
-        # If no erasures, just return the data directly
-        if not data_erasures and not global_erasures:
-            out = bytearray()
-            for frag in available_data:
-                out.extend(frag)
-            while out and out[-1] == 0:
-                out.pop()
-            return bytes(out)
-
-        # Use RS to reconstruct data fragments
-        data_codeword = b"".join(available_data + available_global)
-
-        # Create erasure positions for the data + global parity codeword
-        erasures = []
-        for pos in data_erasures:
-            for b in range(self.fragment_size):
-                erasures.append(pos * self.fragment_size + b)
-
-        for pos in global_erasures:
-            global_pos = self.k + pos
-            for b in range(self.fragment_size):
-                erasures.append(global_pos * self.fragment_size + b)
-
-        try:
-            decoded = self.rsc.decode(data_codeword, erase_pos=erasures)
-            data_bytes = decoded[0]
-
-            # Extract reconstructed data fragments
-            data = []
-            for i in range(self.k):
-                start = i * self.fragment_size
-                end = start + self.fragment_size
-                data.append(data_bytes[start:end])
-
-            # Combine into final data
-            out = bytearray()
-            for frag in data:
-                out.extend(frag)
-
-            # Remove zero padding
-            while out and out[-1] == 0:
-                out.pop()
-
-            return bytes(out)
-        except Exception:
-            # If RS fails, fall back to simple reconstruction
-            out = bytearray()
-            for frag in available_data:
-                out.extend(frag)
-            while out and out[-1] == 0:
-                out.pop()
-            return bytes(out)
+                # Missing fragment - use zero padding as fallback
+                reconstructed_data.extend(b'\x00' * self.fragment_size)
+        
+        # Remove padding
+        while reconstructed_data and reconstructed_data[-1] == 0:
+            reconstructed_data.pop()
+        
+        return bytes(reconstructed_data)

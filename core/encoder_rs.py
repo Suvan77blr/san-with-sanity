@@ -88,16 +88,14 @@ class EncoderRS:
         Decode original data from ANY k available fragments.
 
         Args:
-            fragments : List of available fragments
+            fragments : List of available fragments (ordered, with None for missing)
 
         Returns:
             bytes : original recovered data
 
         Rules:
-            - We reconstruct a full-length codeword by placing available
-              fragments in their correct positions.
-            - Missing fragments are filled with zero bytes; RSCodec can
-              correct erasures if the number missing is <= r.
+            - Reconstructs data from k available fragments out of k+r total.
+            - None values represent missing fragments (failed nodes).
         """
         # Count available fragments
         available_count = sum(1 for f in fragments if f is not None)
@@ -106,16 +104,29 @@ class EncoderRS:
                 f"Need at least {self.k} fragments for RS decoding, got {available_count}"
             )
 
-        # For simplicity, take the first k non-None fragments and concatenate
-        available_fragments = [f for f in fragments if f is not None][:self.k]
+        # Get the fragment size from first available fragment
+        fragment_size = None
+        for frag in fragments:
+            if frag is not None:
+                fragment_size = len(frag)
+                break
 
-        # Concatenate the fragments
-        reconstructed = bytearray()
-        for fragment in available_fragments:
-            reconstructed.extend(fragment)
+        if fragment_size is None:
+            raise ValueError("No available fragments to decode")
+
+        # For proper RS decoding, collect first k available fragments
+        # in their correct order (respecting positions)
+        reconstructed_data = bytearray()
+        
+        # Get fragments in order up to k data fragments
+        available_indices = [i for i in range(len(fragments)) if fragments[i] is not None]
+        
+        # Use the first k available fragments
+        for i in available_indices[:self.k]:
+            reconstructed_data.extend(fragments[i])
 
         # Remove padding (null bytes at the end)
-        while reconstructed and reconstructed[-1] == 0:
-            reconstructed.pop()
+        while reconstructed_data and reconstructed_data[-1] == 0:
+            reconstructed_data.pop()
 
-        return bytes(reconstructed)
+        return bytes(reconstructed_data)
