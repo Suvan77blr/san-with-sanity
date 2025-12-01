@@ -1,4 +1,3 @@
-            
 """
 Main simulator class that orchestrates the entire erasure coding simulation.
 
@@ -6,6 +5,7 @@ Coordinates encoding, node failures, and reconstruction for both RS and LRC.
 """
 
 import time
+import json
 from config.constants import *
 from .cluster import Cluster
 from .encoder_rs import EncoderRS
@@ -38,6 +38,32 @@ class Simulator:
         self.original_data = None
         self.logger = Logger(log_to_file=False)  # Console-only logging for demo
         self.metrics_collector = MetricsCollector()
+
+    def __init__(self, config, scenario_config=None, scenario_id=None):
+        # Simulation config
+        self.num_nodes = config['NUM_NODES']
+        self.failure_count = config['FAILURE_COUNT']
+        self.rs_k = config['RS_K']
+        self.rs_r = config['RS_R']
+        self.lrc_k = config['LRC_K']
+        self.lrc_local_parity = config['LRC_LOCAL_PARITY']
+        self.lrc_group_size = config['LRC_GROUP_SIZE']
+        self.lrc_global_parity = config['LRC_GLOBAL_PARITY']
+        self.thread_delay = config['THREAD_DELAY_MS'] / 1000.0  # Convert to seconds
+
+        # Components
+        self.cluster = None
+        self.rs_encoder = None
+        self.lrc_encoder = None
+        self.original_data = None
+        self.logger = Logger(log_to_file=False)  # Console-only logging for demo
+
+        # Metrics collector
+        self.metrics_collector = MetricsCollector(
+            scenario_config=scenario_config,
+            scenario_id=scenario_id
+        )
+
 
     def run_simulation(self, test_data="Hello, World! This is a test message for erasure coding simulation."):
         """
@@ -363,5 +389,17 @@ class Simulator:
             self.metrics_collector.compare_metrics()
             metrics_summary = self.metrics_collector.get_metrics_summary()
             self.logger.log_metrics_comparison(metrics_summary)
+            self._export_metrics_to_json(metrics_summary)
         except Exception as e:
             self.logger.log_error(f"Error displaying metrics: {e}")
+
+    def _export_metrics_to_json(self, metrics_summary):
+        """
+        Export the metrics summary to a JSON file.
+        """
+        try:
+            with open('metrics.json', 'w') as f:
+                json.dump(metrics_summary, f, indent=4)
+            self.logger.log_info("Metrics exported to metrics.json")
+        except Exception as e:
+            self.logger.log_error(f"Error exporting metrics to JSON: {e}")

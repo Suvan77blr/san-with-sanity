@@ -26,3 +26,56 @@ LRC_GLOBAL_PARITY = 2   # Number of global RS parity fragments
 # Data parameters
 BLOCK_SIZE = 1024  # Size of data blocks in bytes
 
+# Adding a default config for the simulator.
+DEFAULT_CONFIG = {
+    "NUM_NODES": NUM_NODES,
+    "FAILURE_COUNT": FAILURE_COUNT,
+    "RS_K": RS_K,
+    "RS_R": RS_R,
+    "LRC_K": LRC_K,
+    "LRC_LOCAL_PARITY": LRC_LOCAL_PARITY,
+    "LRC_GROUP_SIZE": LRC_GROUP_SIZE,
+    "LRC_GLOBAL_PARITY": LRC_GLOBAL_PARITY,
+    "THREAD_DELAY_MS": THREAD_DELAY_MS
+}
+
+# SCENARIOS = [
+
+#     # 1️⃣ Local Repair Demonstration
+#     {
+#         **DEFAULT_CONFIG,
+#         "FAILURE_COUNT": 1,
+#         "LRC_GROUP_SIZE": 3,
+#     },
+
+#     # 2️⃣ Increasing global parity (LRC more robust)
+#     {
+#         **DEFAULT_CONFIG,
+#         "LRC_GLOBAL_PARITY": 3,
+#     },
+
+#     # 3️⃣ Larger groups (LRC loses locality)
+#     {
+#         **DEFAULT_CONFIG,
+#         "LRC_GROUP_SIZE": 6,  # becomes RS-like
+#     },
+
+#     # 4️⃣ Small groups (LRC extremely efficient)
+#     {
+#         **DEFAULT_CONFIG,
+#         "LRC_GROUP_SIZE": 2,
+#     }
+# ]
+
+
+# BASE = {
+#     "NUM_NODES": 10,
+#     "FAILURE_COUNT": 1,
+#     "RS_K": 6,
+#     "RS_R": 3,
+#     "LRC_K": 6,
+#     "LRC_LOCAL_PARITY": 1,
+#     "LRC_GROUP_SIZE": 3,
+#     "LRC_GLOBAL_PARITY": 2,
+#     "THREAD_DELAY_MS": 10,
+# }

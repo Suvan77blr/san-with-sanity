@@ -55,6 +55,14 @@ class MetricsCollector:
         self.rs_metrics = None
         self.lrc_metrics = None
         self.comparison_results = None
+
+    def __init__(self, scenario_config=None, scenario_id=None):
+        self.scenario_config = scenario_config or {}
+        self.scenario_id = scenario_id
+        self.rs_metrics = None
+        self.lrc_metrics = None
+        self.comparison_results = None
+        self.timestamp = time.time()
     
     def collect_rs_metrics(self, original_data, rs_encoder, cluster, 
                           fragments_used, nodes_contacted, 
@@ -200,6 +208,8 @@ class MetricsCollector:
             reconstruction_success=reconstruction_success,
             data_integrity=data_integrity
         )
+        self.lrc_metrics.local_repair_used = local_repair_used if local_repair_used else False
+        self.lrc_metrics.global_repair_used = global_repair_used if global_repair_used else False
     
     def compare_metrics(self):
         """
@@ -212,25 +222,54 @@ class MetricsCollector:
             raise ValueError("Both RS and LRC metrics must be collected first")
         
         comparison = {
+            'scenario_id': self.scenario_id,
+            'local_repair_used': self.lrc_metrics.local_repair_used,
+            'global_repair_used': self.lrc_metrics.global_repair_used,
+
             'nodes_saved': {
                 'value': self.rs_metrics.nodes_contacted - self.lrc_metrics.nodes_contacted,
+                'unit': 'nodes',
                 'percentage': ((self.rs_metrics.nodes_contacted - self.lrc_metrics.nodes_contacted) / 
                               self.rs_metrics.nodes_contacted * 100)
             },
             'bandwidth_saved': {
                 'value': self.rs_metrics.fragments_accessed_bytes - self.lrc_metrics.fragments_accessed_bytes,
+                'unit': 'bytes',
                 'percentage': ((self.rs_metrics.fragments_accessed_bytes - self.lrc_metrics.fragments_accessed_bytes) / 
                               self.rs_metrics.fragments_accessed_bytes * 100)
             },
-            'xor_operations_ratio': self.lrc_metrics.xor_operations / max(self.rs_metrics.xor_operations, 1),
-            'multiplication_operations_ratio': (self.lrc_metrics.multiplication_operations / 
-                                               max(self.rs_metrics.multiplication_operations, 1)),
+
+            'xor_reduction_ratio': round(self.lrc_metrics.xor_operations / max(self.rs_metrics.xor_operations,1), 4),
+            'multiplication_reduction_ratio': round(self.lrc_metrics.multiplication_operations / max(self.rs_metrics.multiplication_operations,1), 4),
             'recovery_time_improvement': {
                 'value': self.rs_metrics.recovery_time - self.lrc_metrics.recovery_time,
+                'unit': 'ms',
                 'percentage': ((self.rs_metrics.recovery_time - self.lrc_metrics.recovery_time) / 
                               max(self.rs_metrics.recovery_time, 0.001) * 100)
             }
         }
+        
+        # Earlier Version.
+        # comparison = {
+        #     'nodes_saved': {
+        #         'value': self.rs_metrics.nodes_contacted - self.lrc_metrics.nodes_contacted,
+        #         'percentage': ((self.rs_metrics.nodes_contacted - self.lrc_metrics.nodes_contacted) / 
+        #                       self.rs_metrics.nodes_contacted * 100)
+        #     },
+        #     'bandwidth_saved': {
+        #         'value': self.rs_metrics.fragments_accessed_bytes - self.lrc_metrics.fragments_accessed_bytes,
+        #         'percentage': ((self.rs_metrics.fragments_accessed_bytes - self.lrc_metrics.fragments_accessed_bytes) / 
+        #                       self.rs_metrics.fragments_accessed_bytes * 100)
+        #     },
+        #     'xor_operations_ratio': self.lrc_metrics.xor_operations / max(self.rs_metrics.xor_operations, 1),
+        #     'multiplication_operations_ratio': (self.lrc_metrics.multiplication_operations / 
+        #                                        max(self.rs_metrics.multiplication_operations, 1)),
+        #     'recovery_time_improvement': {
+        #         'value': self.rs_metrics.recovery_time - self.lrc_metrics.recovery_time,
+        #         'percentage': ((self.rs_metrics.recovery_time - self.lrc_metrics.recovery_time) / 
+        #                       max(self.rs_metrics.recovery_time, 0.001) * 100)
+        #     }
+        # }
         
         self.comparison_results = comparison
         return comparison
@@ -243,7 +282,16 @@ class MetricsCollector:
             dict with formatted metrics
         """
         return {
+            'scenario_id': self.scenario_id,
+            'timestamp': self.timestamp,
+            'scenario_config': self.scenario_config,
             'rs_metrics': asdict(self.rs_metrics) if self.rs_metrics else None,
             'lrc_metrics': asdict(self.lrc_metrics) if self.lrc_metrics else None,
             'comparison': self.comparison_results
         }
+
+        # return {
+        #     'rs_metrics': asdict(self.rs_metrics) if self.rs_metrics else None,
+        #     'lrc_metrics': asdict(self.lrc_metrics) if self.lrc_metrics else None,
+        #     'comparison': self.comparison_results
+        # }
