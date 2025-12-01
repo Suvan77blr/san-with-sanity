@@ -6,7 +6,7 @@ This script initializes and runs the complete simulation comparing
 Reed-Solomon (RS) vs Local Reconstruction Codes (LRC).
 """
 
-# from core.simulator import Simulator
+from core.simulator import Simulator
 # from core.simulator_METRICs_GENERATOR import Simulator as SimulatorMETRICsGENERATOR
 from core.scenario_simulator import ScenarioRunner
 from config.scenarios import SCENARIOS
@@ -23,16 +23,15 @@ def run_scenarios():
     print(f"Got results of {len(results)} tests!")
     return results
 
-
 def main():
     """
     Main function that orchestrates the simulation.
     """
     # Create and run the simulator
-    # simulator = Simulator()
-    # simulator.run_simulation(
-    #     "We have ceased to be Men,\nA generation of weaklings.\n\nIn the name of equality,\nWe have long lost chivalry,\nBirthing a hateful mentality,"
-    # )
+    simulator = Simulator()
+    simulator.run_simulation(
+        "We have ceased to be Men,\nA generation of weaklings.\n\nIn the name of equality,\nWe have long lost chivalry,\nBirthing a hateful mentality,"
+    )
 
     # Uncomment to run the metrics generator simulator.
     # simulator_metrics_generator = SimulatorMETRICsGENERATOR()
@@ -41,7 +40,12 @@ def main():
     # )
 
     # Create and run the scenario simulator
-    run_scenarios()
+    I_WANT_GRAPHS_AFTER_SIMULATIONS = False
+    if(I_WANT_GRAPHS_AFTER_SIMULATIONS):
+        run_scenarios()
+        from results_graph_generator import generate_graphs
+        generate_graphs()
+        
 
 
 if __name__ == "__main__":
